@@ -3,7 +3,7 @@
 Runtime threat detection and automatic containment for Kubernetes. It watches kernel events with eBPF,
 scores each pod against its own learned behaviour, explains what looks wrong, and quarantines the pod.
 
-![ci](https://github.com/YOUR-USER/kubesentinel/actions/workflows/ci.yml/badge.svg)
+![ci](https://github.com/Amir-Abdaoui/kubesentinel/actions/workflows/ci.yml/badge.svg)
 
 ## How it works
 
