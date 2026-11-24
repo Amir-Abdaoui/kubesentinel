@@ -16,6 +16,7 @@ class Detector:
     def fit(self, X):
         X = np.asarray(X, float)
         self.mean = X.mean(0)
+        self.zero_cols = X.max(axis=0) == 0   # features never observed in the baseline
         self.std = np.maximum(X.std(0), 0.5)  # avoid huge z on near-constant features
         self.iforest.fit(X)
         train_scores = -self.iforest.score_samples(X)
@@ -26,7 +27,8 @@ class Detector:
         """Out-of-support guard: Isolation Forest cannot split features that were constant in
         training (e.g. n_external_conn == 0 for every benign window), so flag extreme z-scores."""
         z = np.abs((X - self.mean) / self.std)
-        return z.max(axis=1) >= self.z_guard
+        never = ((X > 0) & getattr(self, "zero_cols", np.zeros(X.shape[1], bool))).any(axis=1)
+        return (z.max(axis=1) >= self.z_guard) | never
 
     def score(self, vec):
         s, a = self.score_many([vec])

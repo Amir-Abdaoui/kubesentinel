@@ -12,11 +12,19 @@ import argparse, json, math, os, random, statistics, subprocess, time
 
 ATTACKS = {"reverse_shell": "Reverse shell", "cryptominer": "Crypto-mining", "credential_theft": "Credential access",
            "container_escape": "Container escape", "exfiltration": "Data exfiltration",
-           "stealth_c2": "Suspicious external beaconing"}
+           "stealth_c2": "Suspicious external beaconing",
+           "reverse_shell_nosh": "Reverse shell", "exfiltration_nosh": "Data exfiltration",
+           "stealth_c2_nosh": "Suspicious external beaconing"}
 DRILLS = [("victim-web", "ls /etc; ps; cat /etc/hostname"), ("victim-web", "df -h; id; ls /var/log/nginx"),
           ("worker", "ls /tmp; date; ps"), ("api-client", "ps; id; cat /etc/hostname"),
           ("poller", "date; ls /; ps"), ("victim-web", "wget -q -O- http://victim-web >/dev/null; echo ok"),
           ("worker", "cat /etc/os-release; uname -a")]
+# Training drills differ from the test drills above, so the held-out benchmark measures generalisation.
+TRAIN_DRILLS = [("victim-web", "ls -la /usr/share/nginx/html; head -5 /etc/nginx/nginx.conf; ps"),
+                ("victim-web", "env | sort | head; id; hostname"), ("victim-web", "nginx -t 2>&1; date; ls /var/log/nginx"),
+                ("worker", "ps aux; ls /tmp; cat /etc/hostname"), ("worker", "df -h; uptime; id"),
+                ("api-client", "ls /; ps; id; date"), ("poller", "cat /etc/resolv.conf; ps; date"),
+                ("poller", "uname -a; ls /proc | head -3; id")]
 RAW = "data/benchmark_raw.json"
 MARGIN = 30  # seconds after an attack ends during which an alert still belongs to it
 
@@ -122,6 +130,14 @@ def report():
     print("\n".join(L))
 
 
+def run_drills(a):
+    rnd = random.Random(a.seed); end = time.time() + a.minutes * 60; n = 0
+    while time.time() < end:
+        pod, cmd = rnd.choice(TRAIN_DRILLS); kexec(pod, cmd); n += 1
+        time.sleep(rnd.uniform(20, 45))
+    print(f"{n} training drills done", flush=True)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     sp = ap.add_subparsers(dest="cmd", required=True)
@@ -129,8 +145,12 @@ if __name__ == "__main__":
     r.add_argument("--gap", type=int, default=35); r.add_argument("--benign-min", type=int, default=30)
     r.add_argument("--seed", type=int, default=1)
     sp.add_parser("report")
+    d = sp.add_parser("drills"); d.add_argument("--minutes", type=int, default=20); d.add_argument("--seed", type=int, default=11)
     a = ap.parse_args()
     os.makedirs("data", exist_ok=True)
     if a.cmd == "run":
         collect(a)
-    report()
+    if a.cmd == "drills":
+        run_drills(a)
+    else:
+        report()
