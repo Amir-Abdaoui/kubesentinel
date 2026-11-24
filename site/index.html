@@ -1,0 +1,165 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KubeSentinel: runtime threat detection for Kubernetes</title>
+<meta name="description" content="eBPF telemetry, hybrid ML detection and automatic quarantine for Kubernetes workloads.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#070a1c;--panel:#0e1330;--line:#1f2752;--tx:#e8ecff;--mu:#8e98c9;--ice:#5de4ff;--coral:#ff5470;--ok:#4be3a6;--amb:#ffb454;
+--f:'Sora',system-ui,sans-serif;--m:'IBM Plex Mono',ui-monospace,monospace}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--ink);color:var(--tx);font:400 16px/1.6 var(--f)}
+#bg{position:fixed;inset:0;z-index:0}
+main,nav,footer{position:relative;z-index:1}
+a{color:inherit}
+nav{position:sticky;top:0;display:flex;gap:28px;align-items:center;padding:14px 5vw;backdrop-filter:blur(14px);background:#070a1ccc;border-bottom:1px solid var(--line);z-index:5}
+nav b{font-weight:800;letter-spacing:.2px;margin-right:auto}nav a{text-decoration:none;color:var(--mu);font-size:14px}nav a:hover,nav a:focus-visible{color:var(--ice);outline:none}
+.hero{min-height:88vh;display:grid;align-content:center;padding:0 5vw;max-width:1100px}
+h1{font-size:clamp(40px,7vw,86px);line-height:1.02;font-weight:800;margin:0 0 22px;letter-spacing:-.03em}
+h1 span{background:linear-gradient(90deg,var(--ice),#a58bff 55%,var(--coral));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{max-width:56ch;color:var(--mu);font-size:19px}
+.cta{display:flex;gap:14px;margin-top:30px;flex-wrap:wrap}
+.btn{border:1px solid var(--ice);color:var(--ice);padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:600;background:#5de4ff14;transition:.2s}
+.btn:hover,.btn:focus-visible{background:var(--ice);color:var(--ink);box-shadow:0 0 28px #5de4ff66;outline:none}
+.btn.alt{border-color:var(--line);color:var(--tx);background:none}
+section{padding:90px 5vw;max-width:1250px;margin:auto}
+h2{font-size:clamp(28px,4vw,44px);margin:0 0 10px;letter-spacing:-.02em}
+.sub{color:var(--mu);max-width:62ch;margin:0 0 36px}
+.glass{background:linear-gradient(160deg,#121842cc,#0b1030cc);border:1px solid var(--line);border-radius:16px;padding:20px;backdrop-filter:blur(8px)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:-40px}
+.kpi b{display:block;font-size:34px;font-weight:800;color:var(--ice)}.kpi span{color:var(--mu);font-size:13px}
+.flow{display:grid;grid-template-columns:repeat(6,1fr);gap:0;position:relative}
+.step{padding:18px 14px;position:relative;font-size:14px}
+.step i{font:500 12px var(--m);color:var(--ice);display:block;margin-bottom:6px}
+.step b{display:block;margin-bottom:4px}.step span{color:var(--mu);font-size:13px}
+.flow:before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:repeating-linear-gradient(90deg,var(--ice) 0 14px,transparent 14px 28px);animation:dash 1.2s linear infinite;opacity:.7}
+@keyframes dash{to{background-position:28px 0}}
+.live{display:grid;grid-template-columns:300px 1fr;gap:16px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.tag{font:500 12px var(--m);padding:4px 10px;border:1px solid var(--line);border-radius:99px;color:var(--mu)}
+.tag.on{color:var(--amb);border-color:#ffb45466}
+button.atk{font:500 13px var(--m);background:#ff547016;color:var(--coral);border:1px solid #ff547066;padding:7px 12px;border-radius:8px;cursor:pointer;transition:.15s}
+button.atk:hover,button.atk:focus-visible{background:var(--coral);color:var(--ink);outline:none}
+button.ctl{font:500 13px var(--m);background:none;color:var(--tx);border:1px solid var(--line);padding:7px 12px;border-radius:8px;cursor:pointer}
+.pods{display:grid;gap:10px}
+.pod{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px;transition:.4s;font:500 13px var(--m)}
+.pod i{width:12px;height:12px;border-radius:50%;background:var(--ok);box-shadow:0 0 12px var(--ok);transition:.4s}
+.pod.bad{border-color:var(--coral);background:#ff54701c}.pod.bad i{background:var(--coral);box-shadow:0 0 18px var(--coral);animation:pulse .5s infinite alternate}
+.pod.q{opacity:.6;border-style:dashed}.pod.q i{background:var(--mu);box-shadow:none;animation:none}
+.pod small{margin-left:auto;color:var(--mu)}
+@keyframes pulse{to{transform:scale(1.6)}}
+svg.spark{width:100%;height:70px;margin-top:14px}
+#feed{display:grid;gap:10px;min-height:420px;align-content:start}
+.al{border:1px solid var(--line);border-left:3px solid var(--amb);border-radius:12px;padding:12px 14px;background:#0b1030;animation:in .5s cubic-bezier(.2,.9,.3,1)}
+.al.high{border-left-color:var(--coral)}
+@keyframes in{from{opacity:0;transform:translateX(-26px) scale(.98)}}
+.al h4{margin:0 0 2px;font-size:15px}.al p{margin:0;color:var(--mu);font:400 12.5px/1.5 var(--m)}
+.al .act{color:var(--ok)}
+.mx{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.col h5{margin:0 0 8px;font-size:13px;color:var(--mu);font-weight:600}
+.cell{font:500 12px var(--m);border:1px solid var(--line);border-radius:8px;padding:9px;margin-bottom:8px;color:var(--mu);transition:.5s;position:relative}
+.cell.hit{color:var(--ink);background:var(--ice);border-color:var(--ice);box-shadow:0 0 22px #5de4ff88}
+.cell em{position:absolute;right:8px;top:8px;font-style:normal}
+.res{display:grid;grid-template-columns:1.3fr 1fr;gap:16px}
+.row{display:grid;grid-template-columns:150px 1fr 90px;align-items:center;gap:12px;margin:10px 0;font:500 13px var(--m)}
+.trk{height:10px;background:#1a2150;border-radius:9px;overflow:hidden}
+.fill{height:100%;width:0;border-radius:9px;background:linear-gradient(90deg,var(--ice),#a58bff);transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+.fill.pend{background:repeating-linear-gradient(45deg,#2a3270 0 8px,#1a2150 8px 16px)}
+.fill.bad{background:linear-gradient(90deg,var(--amb),var(--coral))}
+.note{color:var(--mu);font-size:13px;margin-top:14px}
+footer{padding:50px 5vw;color:var(--mu);font-size:14px;border-top:1px solid var(--line);max-width:1250px;margin:auto}
+@media(max-width:860px){.kpis,.flow,.mx{grid-template-columns:repeat(2,1fr)}.live,.res{grid-template-columns:1fr}nav a{display:none}.row{grid-template-columns:110px 1fr 70px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<nav><b>KubeSentinel</b><a href="#pipeline">How it works</a><a href="#live">Live replay</a><a href="#attack">ATT&amp;CK coverage</a><a href="#results">Results</a></nav>
+<main>
+<header class="hero"><h1>Catch the attack inside the container, <span>then cut it off.</span></h1>
+<p class="lead">KubeSentinel watches kernel events with eBPF, scores every pod against its own learned behaviour, explains what looks wrong, and quarantines the pod before the attacker moves.</p>
+<div class="cta"><a class="btn" href="#live">Watch an attack get contained</a><a class="btn alt" href="#results">See the measurements</a></div></header>
+<section style="padding-top:0"><div class="kpis"><div class="glass kpi"><b data-n="6">0</b><span>attack types detected in the first real run</span></div>
+<div class="glass kpi"><b data-n="33" data-s="%">0</b><span>false alarms from signature rules on real traffic</span></div>
+<div class="glass kpi"><b data-n="11">0</b><span>behaviour features per pod window</span></div>
+<div class="glass kpi"><b data-n="0" data-s=" FP">0</b><span>hybrid false alarms on held-out windows (118)</span></div></div></section>
+
+<section id="pipeline"><h2>From syscall to quarantine in seconds</h2><p class="sub">Each step is small and testable. The whole chain ran on a real two-node cluster.</p>
+<div class="flow">
+<div class="step"><i>1</i><b>Falco + eBPF</b><span>Kernel sees every exec, connect and file open.</span></div>
+<div class="step"><i>2</i><b>Webhook</b><span>Token-authenticated events reach the detector.</span></div>
+<div class="step"><i>3</i><b>Sliding windows</b><span>Ten-second behaviour snapshot per pod.</span></div>
+<div class="step"><i>4</i><b>Hybrid scoring</b><span>Isolation Forest, a z-score guard and rules.</span></div>
+<div class="step"><i>5</i><b>Explain</b><span>ATT&amp;CK technique, CWE and top deviations.</span></div>
+<div class="step"><i>6</i><b>Contain</b><span>Label the pod, deny all traffic, save hashed evidence.</span></div></div></section>
+
+<section id="live"><h2>Live replay</h2><p class="sub">Pick an attack and watch the pod turn, get explained, then get isolated.</p>
+<div class="bar"><span class="tag on" id="src">Sample data</span><button class="ctl" id="pp">Pause</button>
+<span id="btns" style="display:contents"></span></div>
+<div class="live"><div class="glass"><div class="pods" id="pods"></div><svg class="spark" id="sp" viewBox="0 0 200 60" preserveAspectRatio="none" role="img" aria-label="Anomaly score over time"><polyline fill="none" stroke="#5de4ff" stroke-width="1.6" points=""/></svg>
+<div class="note">Anomaly score per window. Spikes are attacks.</div></div>
+<div class="glass"><div id="feed" aria-live="polite"></div></div></div></section>
+
+<section id="attack"><h2>ATT&amp;CK coverage</h2><p class="sub">Techniques light up as the replay detects them.</p><div class="mx" id="mx"></div></section>
+
+<section id="results"><h2>What the measurements say</h2><p class="sub">Numbers come from the real cluster. Striped bars are waiting for the full 60-attack benchmark.</p>
+<div class="res"><div class="glass"><b>Detection per attack</b><div id="det"></div><p class="note" id="detn"></p></div>
+<div class="glass"><b>False alarms on real benign traffic</b><div id="fp"></div><p class="note">118 unseen windows from a time-ordered split. Loop workloads repeat closely, so the forest figure is optimistic. The full benchmark adds admin drills.</p></div></div></section>
+</main>
+<footer>KubeSentinel, an ENISo cybersecurity engineering project. Lab environment only: the attack scripts and the vulnerable workload must never run on a cluster you do not own.</footer>
+<script>
+const RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
+/* ---------- data (replaced by data/replay.json when present) ---------- */
+let ALERTS=[
+{k:"reverse_shell",pod:"victim-web",sev:"high",label:"Reverse shell",tech:"T1059.004",tac:"Execution",score:.71,dev:"n_external_conn z=6, shell=1",act:"quarantined, evidence saved"},
+{k:"cryptominer",pod:"victim-web",sev:"high",label:"Crypto-mining",tech:"T1496",tac:"Impact",score:.69,dev:"n_external_conn z=24, n_exec z=6",act:"quarantined, evidence saved"},
+{k:"credential_theft",pod:"victim-web",sev:"high",label:"Credential access",tech:"T1552.007",tac:"Credential Access",score:.66,dev:"n_sensitive_open z=10",act:"quarantined, evidence saved"},
+{k:"container_escape",pod:"victim-web",sev:"high",label:"Container escape",tech:"T1611",tac:"Privilege Escalation",score:.70,dev:"n_write_sensitive z=4",act:"quarantined, evidence saved"},
+{k:"exfiltration",pod:"victim-web",sev:"high",label:"Data exfiltration",tech:"T1041",tac:"Exfiltration",score:.59,dev:"n_external_conn z=200, n_connect z=33",act:"quarantined, evidence saved"},
+{k:"stealth_c2",pod:"victim-web",sev:"high",label:"External beaconing",tech:"T1071",tac:"Command and Control",score:.67,dev:"n_external_conn z=10",act:"quarantined, evidence saved"}];
+let BENCH={attacks:null,fp:[["Signature rules",33.1,"39 of 118"],["Isolation Forest",0,"0 of 118"],["Hybrid",0,"0 of 118"]]};
+const PODS=["victim-web","api-client","worker","poller"];
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+/* ---------- hero network: a compromised pod loses its links ---------- */
+const cv=$("#bg"),cx=cv.getContext("2d");let W,H,N=[],P=[];
+function size(){W=cv.width=innerWidth;H=cv.height=innerHeight;N=Array.from({length:Math.min(80,W/16|0)},()=>({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,s:0}))}
+function hit(){const a=N[Math.random()*N.length|0];if(!a.s)a.s=1}
+function frame(){cx.clearRect(0,0,W,H);
+ for(const a of N){a.x+=a.vx;a.y+=a.vy;if(a.x<0||a.x>W)a.vx*=-1;if(a.y<0||a.y>H)a.vy*=-1;if(a.s>0)a.s=Math.max(0,a.s-.0025)}
+ for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){const a=N[i],b=N[j];if(a.s>.5||b.s>.5)continue;const d=Math.hypot(a.x-b.x,a.y-b.y);
+  if(d<140){cx.strokeStyle=`rgba(93,228,255,${(1-d/140)*.22})`;cx.beginPath();cx.moveTo(a.x,a.y);cx.lineTo(b.x,b.y);cx.stroke();if(Math.random()<.0009)P.push({a,b,t:0})}}
+ for(const p of P){p.t+=.018;if(p.a.s>.5||p.b.s>.5)continue;cx.fillStyle="#bdf4ff";cx.beginPath();cx.arc(p.a.x+(p.b.x-p.a.x)*p.t,p.a.y+(p.b.y-p.a.y)*p.t,1.8,0,7);cx.fill()}
+ P=P.filter(p=>p.t<1);
+ for(const a of N){const bad=a.s>0;cx.fillStyle=bad?"#ff5470":"#5de4ff";cx.globalAlpha=bad?1:.7;cx.beginPath();cx.arc(a.x,a.y,bad?3.6:2,0,7);cx.fill();
+  if(bad){cx.strokeStyle=`rgba(255,84,112,${a.s})`;cx.beginPath();cx.arc(a.x,a.y,(1-a.s)*90+6,0,7);cx.stroke()}cx.globalAlpha=1}
+ if(!RM)requestAnimationFrame(frame)}
+size();addEventListener("resize",size);frame();if(!RM)setInterval(hit,5200);
+/* ---------- counters ---------- */
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;io.unobserve(e.target);const t=+e.target.dataset.n,s=e.target.dataset.s||"";let v=0;
+ const id=setInterval(()=>{v+=Math.max(t/40,.05);if(v>=t){v=t;clearInterval(id)}e.target.textContent=Math.round(v)+s},30)}));
+document.querySelectorAll("[data-n]").forEach(e=>io.observe(e));
+/* ---------- live replay ---------- */
+const mx={Execution:["T1059.004"],"Privilege Escalation":["T1611"],"Credential Access":["T1552.007"],Exfiltration:["T1041"],Impact:["T1496"],"Command and Control":["T1071"]};
+$("#mx").innerHTML=Object.entries(mx).map(([t,a])=>`<div class="col"><h5>${t}</h5>${a.map(x=>`<div class="cell" data-t="${x}">${x}<em></em></div>`).join("")}</div>`).join("");
+$("#pods").innerHTML=PODS.map(p=>`<div class="pod" id="pod-${p}"><i></i>${p}<small>healthy</small></div>`).join("");
+let scores=Array(40).fill(.3),idx=0,paused=false;
+function spark(){$("#sp polyline").setAttribute("points",scores.map((s,i)=>`${i*200/39},${58-s*55}`).join(" "))}
+function emit(a){
+ const pod=$("#pod-"+a.pod);if(pod){pod.className="pod bad";pod.lastChild.textContent="compromised";
+  setTimeout(()=>{pod.className="pod q";pod.lastChild.textContent="quarantined"},1800);setTimeout(()=>{pod.className="pod";pod.lastChild.textContent="healthy"},9000)}
+ hit();scores.push(a.score);scores.shift();spark();
+ const c=document.querySelector(`.cell[data-t="${a.tech}"]`);if(c){c.classList.add("hit");const e=c.querySelector("em");e.textContent=(+e.textContent||0)+1}
+ const f=$("#feed"),d=document.createElement("div");d.className="al "+a.sev;
+ d.innerHTML=`<h4>${esc(a.label)} <span style="color:var(--mu);font-weight:400">on ${esc(a.pod)}</span></h4><p>${esc(a.tech)} · ${esc(a.tac)} · score ${a.score}<br>why: ${esc(a.dev)}<br><span class="act">response: ${esc(a.act)}</span></p>`;
+ f.prepend(d);while(f.children.length>6)f.lastChild.remove()}
+function tick(){if(paused)return;emit(ALERTS[idx++%ALERTS.length])}
+$("#btns").innerHTML=ALERTS.map(a=>`<button class="atk" data-k="${a.k}">${a.k.replace("_"," ")}</button>`).join("");
+$("#btns").onclick=e=>{const k=e.target.dataset.k;if(k)emit(ALERTS.find(a=>a.k===k))};
+$("#pp").onclick=e=>{paused=!paused;e.target.textContent=paused?"Resume":"Pause"};
+let st=setInterval(()=>{scores.push(.25+Math.random()*.15);scores.shift();spark()},900);setInterval(tick,3800);spark();
+/* ---------- results ---------- */
+function bars(el,rows,cls){$(el).innerHTML=rows.map(r=>`<div class="row"><span>${r[0]}</span><div class="trk"><div class="fill ${r[3]||cls||""}" data-w="${r[1]}"></div></div><span>${r[2]}</span></div>`).join("")}
+function results(){const A=BENCH.attacks||ALERTS.map(a=>[a.k.replace("_"," "),100,"1/1 smoke","pend"]);
+ bars("#det",A);$("#detn").textContent=BENCH.attacks?"Detection rate over repeated randomised runs, with 95% confidence intervals in the report.":"Smoke test: one run of each attack, all detected and correctly labelled. The 60-run benchmark replaces these.";
+ bars("#fp",BENCH.fp.map(r=>[r[0],r[1],r[2],r[1]>0?"bad":""]));
+ const ro=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){document.querySelectorAll(".fill").forEach(f=>f.style.width=Math.max(f.dataset.w,1.5)+"%");ro.disconnect()}}));ro.observe($("#results"))}
+fetch("data/replay.json").then(r=>r.ok?r.json():Promise.reject()).then(d=>{if(d.alerts&&d.alerts.length)ALERTS=d.alerts;if(d.bench)BENCH=d.bench;
+ $("#src").textContent="Recorded run";$("#src").style.color="var(--ok)";$("#btns").innerHTML=ALERTS.filter((a,i,s)=>s.findIndex(b=>b.k===a.k)===i).map(a=>`<button class="atk" data-k="${a.k}">${a.k.replace("_"," ")}</button>`).join("")}).catch(()=>{}).finally(results);
+</script></body></html>

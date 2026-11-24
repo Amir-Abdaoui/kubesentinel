@@ -1,0 +1,7 @@
+# Any pod labelled ks-quarantine=true loses ALL ingress and egress (requires a NetworkPolicy CNI: Calico).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: ks-quarantine, namespace: ks-demo}
+spec:
+  podSelector: {matchLabels: {ks-quarantine: "true"}}
+  policyTypes: [Ingress, Egress]

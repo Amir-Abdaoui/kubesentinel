@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>KubeSentinel</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ── tokens ───────────────────────────────────────────────── */
+:root {
+  --bg:       #070D1A;
+  --surface:  #0C1526;
+  --surface2: #111E33;
+  --border:   #1A2B45;
+  --cyan:     #00D4FF;
+  --cyan-dim: rgba(0,212,255,.12);
+  --red:      #FF4757;
+  --red-dim:  rgba(255,71,87,.12);
+  --amber:    #FFB020;
+  --amber-dim:rgba(255,176,32,.10);
+  --green:    #2ED573;
+  --green-dim:rgba(46,213,115,.10);
+  --tx:       #E8F0FF;
+  --tx-2:     #6B82A0;
+  --tx-3:     #3D5270;
+  --mono:     'JetBrains Mono', monospace;
+  --sans:     'Inter', system-ui, sans-serif;
+  --r:        6px;
+}
+
+/* ── reset ────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--tx);
+  display: flex;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── sidebar ──────────────────────────────────────────────── */
+#sidebar {
+  width: 220px;
+  min-height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo svg { flex-shrink: 0; }
+.logo-text { display: flex; flex-direction: column; }
+.logo-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--tx);
+}
+.logo-sub {
+  font-size: 10px;
+  color: var(--tx-2);
+  font-family: var(--mono);
+  letter-spacing: .06em;
+}
+
+nav { padding: 16px 10px; flex: 1; }
+.nav-label {
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--tx-3);
+  letter-spacing: .08em;
+  padding: 0 10px;
+  margin-bottom: 6px;
+  margin-top: 16px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: var(--r);
+  cursor: pointer;
+  color: var(--tx-2);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background .15s, color .15s;
+  user-select: none;
+}
+.nav-item:hover { background: var(--surface2); color: var(--tx); }
+.nav-item.active { background: var(--cyan-dim); color: var(--cyan); }
+.nav-item svg { opacity: .7; flex-shrink: 0; }
+.nav-item.active svg { opacity: 1; }
+
+.sidebar-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+}
+#status-dot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--tx-2);
+}
+.dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--tx-3);
+  flex-shrink: 0;
+}
+.dot.live {
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: .4; }
+}
+
+/* ── main ─────────────────────────────────────────────────── */
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 12px;
+  color: var(--tx-2);
+  font-family: var(--mono);
+}
+#clock { color: var(--cyan); }
+.badge {
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+.badge-mode { background: var(--cyan-dim); color: var(--cyan); }
+.badge-resp { background: var(--amber-dim); color: var(--amber); }
+
+/* ── kpi strip ────────────────────────────────────────────── */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.kpi {
+  background: var(--surface);
+  padding: 22px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.kpi-val {
+  font-size: 32px;
+  font-weight: 600;
+  font-family: var(--mono);
+  letter-spacing: -.02em;
+  line-height: 1;
+  transition: color .3s;
+}
+.kpi-label {
+  font-size: 11px;
+  color: var(--tx-2);
+  letter-spacing: .04em;
+}
+.kpi-delta {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--tx-3);
+  margin-top: 2px;
+}
+.kpi-val.red   { color: var(--red); }
+.kpi-val.cyan  { color: var(--cyan); }
+.kpi-val.amber { color: var(--amber); }
+.kpi-val.green { color: var(--green); }
+
+/* ── content grid ─────────────────────────────────────────── */
+.content {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
+  padding: 24px 28px;
+  flex: 1;
+}
+
+/* ── panel ────────────────────────────────────────────────── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  display: flex;
+  flex-direction: column;
+}
+.panel-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: var(--tx-2);
+}
+.panel-body { padding: 18px; flex: 1; }
+.panel-body.no-pad { padding: 0; }
+
+/* ── alert table ──────────────────────────────────────────── */
+#alert-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+#alert-table th {
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 10px;
+  font-family: var(--mono);
+  letter-spacing: .07em;
+  color: var(--tx-3);
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+#alert-table td {
+  padding: 11px 16px;
+  border-bottom: 1px solid rgba(26,43,69,.5);
+  vertical-align: middle;
+}
+.alert-row { transition: background .12s; }
+.alert-row:hover { background: var(--surface2); }
+.alert-row.new-alert {
+  animation: flashRow .6s ease-out;
+}
+@keyframes flashRow {
+  0%   { background: rgba(0,212,255,.15); }
+  100% { background: transparent; }
+}
+
+.sev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .04em;
+}
+.sev-high   { background: var(--red-dim);   color: var(--red);   }
+.sev-medium { background: var(--amber-dim); color: var(--amber); }
+
+.technique-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--tx-3);
+  background: var(--surface2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.score-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.score-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--tx-2);
+  min-width: 32px;
+}
+.score-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  width: 60px;
+  overflow: hidden;
+}
+.score-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--cyan);
+  transition: width .4s;
+}
+.score-fill.danger { background: var(--red); }
+
+.deviation-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.dev-chip {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--tx-3);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+.action-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--green);
+  background: var(--green-dim);
+  padding: 1px 5px;
+  border-radius: 2px;
+  display: inline-block;
+  margin-top: 2px;
+}
+
+/* ── right column panels ──────────────────────────────────── */
+.right-col { display: flex; flex-direction: column; gap: 20px; }
+
+.chart-wrap { position: relative; height: 180px; }
+
+/* ── tactic list ──────────────────────────────────────────── */
+.tactic-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tactic-row:last-child { border-bottom: none; }
+.tactic-name { flex: 1; font-size: 12px; color: var(--tx); }
+.tactic-count {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--cyan);
+  min-width: 24px;
+  text-align: right;
+}
+.tactic-bar-bg {
+  width: 70px;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.tactic-bar-fill {
+  height: 100%;
+  background: var(--cyan);
+  border-radius: 2px;
+  transition: width .5s;
+}
+
+/* ── model card ───────────────────────────────────────────── */
+.model-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.model-row:last-child { border-bottom: none; }
+.model-key { color: var(--tx-2); }
+.model-val { font-family: var(--mono); color: var(--tx); }
+
+/* ── empty state ──────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px 24px;
+  color: var(--tx-3);
+  font-size: 13px;
+}
+.empty-state svg { opacity: .3; }
+
+/* ── scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── responsive ───────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .content { grid-template-columns: 1fr; }
+  .right-col { display: grid; grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 720px) {
+  #sidebar { display: none; }
+  .kpi-strip { grid-template-columns: 1fr 1fr; }
+  .right-col { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ── load fade ────────────────────────────────────────────── */
+.fade-in { animation: fadeIn .4s ease both; }
+@keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: none; } }
+</style>
+</head>
+<body>
+
+<!-- ══ SIDEBAR ══════════════════════════════════════════════ -->
+<aside id="sidebar">
+  <div class="logo">
+    <!-- Shield logo mark -->
+    <svg width="32" height="36" viewBox="0 0 32 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M16 1L2 7V17C2 25.284 8.144 32.924 16 35C23.856 32.924 30 25.284 30 17V7L16 1Z"
+            fill="rgba(0,212,255,.1)" stroke="#00D4FF" stroke-width="1.5"/>
+      <path d="M10 18l4 4 8-8" stroke="#00D4FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="16" cy="17" r="2" fill="#00D4FF" opacity=".4"/>
+    </svg>
+    <div class="logo-text">
+      <span class="logo-name">KubeSentinel</span>
+      <span class="logo-sub">v1.0 · SOC</span>
+    </div>
+  </div>
+
+  <nav>
+    <div class="nav-label">Monitor</div>
+    <div class="nav-item active">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      </svg>
+      Dashboard
+    </div>
+    <div class="nav-item">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      Alerts
+    </div>
+    <div class="nav-item">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      Telemetry
+    </div>
+    <div class="nav-label">Analyze</div>
+    <div class="nav-item">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      ATT&amp;CK Map
+    </div>
+    <div class="nav-item">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      Evidence
+    </div>
+    <div class="nav-label">System</div>
+    <div class="nav-item">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41M12 2v2M12 20v2M2 12h2M20 12h2"/>
+      </svg>
+      Settings
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div id="status-dot">
+      <div class="dot" id="live-dot"></div>
+      <span id="status-text">connecting…</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ═════════════════════════════════════════════════ -->
+<div id="main">
+
+  <!-- topbar -->
+  <div class="topbar">
+    <span class="topbar-title">Runtime Threat Detection</span>
+    <div class="topbar-meta">
+      <span id="clock">--:--:--</span>
+      <span class="badge badge-mode" id="mode-badge">mode: --</span>
+      <span class="badge badge-resp" id="resp-badge">response: --</span>
+    </div>
+  </div>
+
+  <!-- KPI strip -->
+  <div class="kpi-strip fade-in">
+    <div class="kpi">
+      <div class="kpi-val cyan" id="k-windows">--</div>
+      <div class="kpi-label">Windows scanned</div>
+      <div class="kpi-delta" id="k-uptime">uptime --</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" id="k-alerts">--</div>
+      <div class="kpi-label">Total alerts</div>
+      <div class="kpi-delta" id="k-model">model --</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val red" id="k-high">--</div>
+      <div class="kpi-label">High severity</div>
+      <div class="kpi-delta">auto-contained</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val amber" id="k-mttc">--</div>
+      <div class="kpi-label">Mean time to contain</div>
+      <div class="kpi-delta">seconds</div>
+    </div>
+  </div>
+
+  <!-- content -->
+  <div class="content">
+
+    <!-- alert table panel -->
+    <div class="panel fade-in" style="animation-delay:.08s">
+      <div class="panel-head">
+        <span class="panel-title">Live Alert Feed</span>
+        <span style="font-size:11px;font-family:var(--mono);color:var(--tx-3)" id="alert-count-label">0 events</span>
+      </div>
+      <div class="panel-body no-pad" style="overflow-x:auto">
+        <table id="alert-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Pod</th>
+              <th>Severity</th>
+              <th>Finding</th>
+              <th>Score</th>
+              <th>Deviations</th>
+              <th>Response</th>
+            </tr>
+          </thead>
+          <tbody id="alert-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          <span>No alerts — system is monitoring</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- right column -->
+    <div class="right-col">
+
+      <!-- tactic distribution -->
+      <div class="panel fade-in" style="animation-delay:.12s">
+        <div class="panel-head">
+          <span class="panel-title">ATT&amp;CK Techniques</span>
+        </div>
+        <div class="panel-body">
+          <div id="tactic-list">
+            <div class="empty-state" style="padding:20px 0">
+              <span style="font-size:12px">No data yet</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- timeline chart -->
+      <div class="panel fade-in" style="animation-delay:.16s">
+        <div class="panel-head">
+          <span class="panel-title">Alert Timeline</span>
+        </div>
+        <div class="panel-body">
+          <div class="chart-wrap">
+            <canvas id="timeline-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- model info -->
+      <div class="panel fade-in" style="animation-delay:.2s">
+        <div class="panel-head">
+          <span class="panel-title">Detector Status</span>
+        </div>
+        <div class="panel-body" id="model-panel">
+          <div class="model-row"><span class="model-key">Model</span><span class="model-val" id="m-loaded">--</span></div>
+          <div class="model-row"><span class="model-key">Mode</span><span class="model-val" id="m-mode">--</span></div>
+          <div class="model-row"><span class="model-key">Response</span><span class="model-val" id="m-resp">--</span></div>
+          <div class="model-row"><span class="model-key">Windows</span><span class="model-val" id="m-windows">--</span></div>
+          <div class="model-row"><span class="model-key">Alerts</span><span class="model-val" id="m-alerts">--</span></div>
+          <div class="model-row"><span class="model-key">High</span><span class="model-val" id="m-high">--</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── utils ────────────────────────────────────────────────── */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const fmt = s => s == null ? '--' : s;
+
+function animateNum(el, target, suffix = '') {
+  const start = parseInt(el.textContent) || 0;
+  if (start === target) return;
+  const dur = 600, step = 16;
+  let t = 0;
+  const id = setInterval(() => {
+    t += step;
+    const v = Math.round(start + (target - start) * Math.min(t / dur, 1));
+    el.textContent = v + suffix;
+    if (t >= dur) clearInterval(id);
+  }, step);
+}
+
+/* ── clock ────────────────────────────────────────────────── */
+setInterval(() => {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleTimeString('en-GB');
+}, 1000);
+
+/* ── timeline chart ───────────────────────────────────────── */
+const timelineCtx = document.getElementById('timeline-chart').getContext('2d');
+const timelineData = { labels: [], high: [], medium: [] };
+const timelineChart = new Chart(timelineCtx, {
+  type: 'bar',
+  data: {
+    labels: timelineData.labels,
+    datasets: [
+      { label: 'High',   data: timelineData.high,   backgroundColor: 'rgba(255,71,87,.7)',  borderRadius: 2 },
+      { label: 'Medium', data: timelineData.medium, backgroundColor: 'rgba(255,176,32,.5)', borderRadius: 2 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 300 },
+    plugins: {
+      legend: { labels: { color: '#6B82A0', font: { family: 'JetBrains Mono', size: 10 }, boxWidth: 10 } }
+    },
+    scales: {
+      x: { stacked: true, grid: { color: 'rgba(26,43,69,.8)' }, ticks: { color: '#3D5270', font: { family: 'JetBrains Mono', size: 9 } } },
+      y: { stacked: true, grid: { color: 'rgba(26,43,69,.8)' }, ticks: { color: '#3D5270', font: { family: 'JetBrains Mono', size: 9 }, stepSize: 1 }, beginAtZero: true }
+    }
+  }
+});
+
+/* ── rolling timeline buckets ─────────────────────────────── */
+const buckets = {}; // label -> {high, medium}
+function updateTimeline(alerts) {
+  alerts.forEach(a => {
+    const d = new Date(a.ts * 1000);
+    const label = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+    if (!buckets[label]) buckets[label] = { high: 0, medium: 0 };
+    buckets[label][a.severity === 'high' ? 'high' : 'medium']++;
+  });
+  const sorted = Object.keys(buckets).sort().slice(-12);
+  timelineChart.data.labels = sorted;
+  timelineChart.data.datasets[0].data = sorted.map(l => buckets[l].high);
+  timelineChart.data.datasets[1].data = sorted.map(l => buckets[l].medium);
+  timelineChart.update();
+}
+
+/* ── render alerts ────────────────────────────────────────── */
+let lastTopId = null;
+function renderAlerts(alerts) {
+  const tbody = document.getElementById('alert-tbody');
+  const empty = document.getElementById('empty-state');
+  empty.style.display = alerts.length ? 'none' : 'flex';
+  document.getElementById('alert-count-label').textContent = alerts.length + ' events';
+
+  const newTopId = alerts[0]?.id;
+  const isNew = newTopId && newTopId !== lastTopId;
+  lastTopId = newTopId;
+
+  tbody.innerHTML = alerts.slice(0, 20).map((a, i) => {
+    const sevCls = a.severity === 'high' ? 'sev-high' : 'sev-medium';
+    const sevIcon = a.severity === 'high'
+      ? '<svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>'
+      : '<svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>';
+
+    // score bar
+    const pct = a.score != null && a.threshold != null
+      ? Math.min(100, Math.round((a.score / a.threshold) * 100)) : 0;
+    const danger = pct >= 100;
+    const scoreHtml = a.score != null
+      ? `<div class="score-bar-wrap">
+           <span class="score-num">${a.score}</span>
+           <div class="score-bar"><div class="score-fill ${danger?'danger':''}" style="width:${pct}%"></div></div>
+         </div>`
+      : '<span style="color:var(--tx-3);font-family:var(--mono);font-size:11px">rules</span>';
+
+    // deviations
+    const devs = (a.deviations || []).map(d =>
+      `<span class="dev-chip">${esc(d.feature)} z=${d.z}</span>`).join('');
+
+    // actions
+    const acts = (a.actions || []).map(ac =>
+      `<span class="action-tag">${esc(ac)}</span>`).join(' ');
+
+    const rowClass = (i === 0 && isNew) ? 'alert-row new-alert' : 'alert-row';
+    const t = new Date(a.ts * 1000).toLocaleTimeString('en-GB');
+    return `<tr class="${rowClass}">
+      <td style="font-family:var(--mono);font-size:11px;color:var(--tx-2);white-space:nowrap">${t}</td>
+      <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">${esc(a.pod)}</td>
+      <td><span class="sev-badge ${sevCls}">${sevIcon}${esc(a.severity)}</span></td>
+      <td>
+        <div style="font-size:12px;font-weight:500">${esc(a.label)}</div>
+        <span class="technique-tag">${esc(a.technique)}</span>
+      </td>
+      <td>${scoreHtml}</td>
+      <td><div class="deviation-list">${devs || '<span style="color:var(--tx-3);font-size:11px">—</span>'}</div></td>
+      <td>${acts || '<span style="color:var(--tx-3);font-size:11px">—</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── render tactics ───────────────────────────────────────── */
+function renderTactics(byTechnique) {
+  const el = document.getElementById('tactic-list');
+  const entries = Object.entries(byTechnique).sort((a,b) => b[1]-a[1]);
+  if (!entries.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:20px 0"><span style="font-size:12px">No data yet</span></div>';
+    return;
+  }
+  const max = entries[0][1];
+  el.innerHTML = entries.slice(0, 7).map(([k, v]) => `
+    <div class="tactic-row">
+      <span class="tactic-name">${esc(k)}</span>
+      <div class="tactic-bar-bg"><div class="tactic-bar-fill" style="width:${Math.round(v/max*100)}%"></div></div>
+      <span class="tactic-count">${v}</span>
+    </div>`).join('');
+}
+
+/* ── tick ─────────────────────────────────────────────────── */
+let firstTick = true;
+async function tick() {
+  try {
+    const [s, al] = await Promise.all([
+      fetch('/api/stats').then(r => r.json()),
+      fetch('/api/alerts').then(r => r.json()),
+    ]);
+
+    // KPIs
+    if (firstTick) {
+      animateNum(document.getElementById('k-windows'), s.windows_scanned);
+      animateNum(document.getElementById('k-alerts'),  s.alerts);
+      animateNum(document.getElementById('k-high'),    s.high);
+    } else {
+      document.getElementById('k-windows').textContent = s.windows_scanned;
+      document.getElementById('k-alerts').textContent  = s.alerts;
+      document.getElementById('k-high').textContent    = s.high;
+    }
+    document.getElementById('k-mttc').textContent =
+      s.mean_time_to_contain_s != null ? s.mean_time_to_contain_s + 's' : '--';
+    document.getElementById('k-uptime').textContent =
+      'uptime ' + Math.floor(s.uptime_s / 60) + 'm';
+    document.getElementById('k-model').textContent =
+      'model ' + (s.model_loaded ? 'loaded' : 'none');
+
+    // badges
+    document.getElementById('mode-badge').textContent  = 'mode: ' + s.mode;
+    document.getElementById('resp-badge').textContent  = 'response: ' + s.response_mode;
+
+    // model panel
+    document.getElementById('m-loaded').textContent  = s.model_loaded ? 'IsolationForest ✓' : 'none';
+    document.getElementById('m-mode').textContent    = s.mode;
+    document.getElementById('m-resp').textContent    = s.response_mode;
+    document.getElementById('m-windows').textContent = s.windows_scanned;
+    document.getElementById('m-alerts').textContent  = s.alerts;
+    document.getElementById('m-high').textContent    = s.high;
+
+    renderAlerts(al);
+    renderTactics(s.by_technique || {});
+    updateTimeline(al);
+
+    // live dot
+    document.getElementById('live-dot').className = 'dot live';
+    document.getElementById('status-text').textContent = 'live · ' +
+      new Date().toLocaleTimeString('en-GB');
+
+    firstTick = false;
+  } catch(e) {
+    document.getElementById('live-dot').className = 'dot';
+    document.getElementById('status-text').textContent = 'disconnected';
+  }
+}
+
+tick();
+setInterval(tick, 3000);
+</script>
+</body>
+</html>

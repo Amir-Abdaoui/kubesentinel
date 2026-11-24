@@ -1,0 +1,43 @@
+# helm install falco falcosecurity/falco -n falco --create-namespace -f falco/values.yaml
+driver: {kind: modern_ebpf}
+nodeSelector:
+  kubernetes.io/hostname: ks-worker
+tty: true
+falco:
+  rule_matching: all
+  json_output: true
+  json_include_output_property: true
+  json_include_tags_property: true
+falcosidekick:
+  enabled: true
+  config:
+    webhook:
+      address: http://ks-detector.ks-system.svc:8080/falco
+      customHeaders: "X-KS-Token:__TOKEN__"     # injected by `make falco`
+      minimumpriority: ""                          # forward everything, incl. telemetry rules
+customRules:
+  ks_rules.yaml: |-
+    - rule: KS Telemetry Exec
+      desc: Process execution inside ks-demo (feature source for ML)
+      condition: spawned_process and container and k8s.ns.name = "ks-demo"
+      output: exec proc=%proc.name cmd=%proc.cmdline pod=%k8s.pod.name ns=%k8s.ns.name
+      priority: DEBUG
+      tags: [ks_telemetry]
+    - rule: KS Telemetry Connect
+      desc: Outbound connection from ks-demo
+      condition: evt.type = connect and container and fd.typechar in (4, 6) and fd.ip != "0.0.0.0" and fd.net != "127.0.0.0/8" and k8s.ns.name = "ks-demo"
+      output: connect ip=%fd.sip port=%fd.sport pod=%k8s.pod.name ns=%k8s.ns.name
+      priority: DEBUG
+      tags: [ks_telemetry]
+    - rule: KS Telemetry Sensitive Open
+      desc: Read of credential / secret files
+      condition: open_read and container and k8s.ns.name = "ks-demo" and (fd.name in (/etc/shadow, /etc/gshadow, /etc/sudoers) or fd.name startswith /var/run/secrets/kubernetes.io)
+      output: sensitive-open file=%fd.name pod=%k8s.pod.name ns=%k8s.ns.name
+      priority: DEBUG
+      tags: [ks_telemetry]
+    - rule: KS Telemetry Sensitive Write
+      desc: Write to system paths
+      condition: open_write and container and k8s.ns.name = "ks-demo" and (fd.name startswith /etc/ or fd.name startswith /usr/bin or fd.name startswith /bin)
+      output: sensitive-write file=%fd.name pod=%k8s.pod.name ns=%k8s.ns.name
+      priority: DEBUG
+      tags: [ks_telemetry]

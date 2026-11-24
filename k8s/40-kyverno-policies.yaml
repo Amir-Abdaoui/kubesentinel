@@ -1,0 +1,20 @@
+# Supply-chain gate (install Kyverno first: `make kyverno`). Audit mode so the vulnerable lab app still runs;
+# switch validationFailureAction to Enforce in a hardened deployment.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata: {name: ks-require-nonroot-and-signed}
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: run-as-non-root
+      match: {any: [{resources: {kinds: [Pod], namespaces: [ks-demo, ks-system]}}]}
+      validate:
+        message: "Containers must not run as root."
+        pattern: {spec: {containers: [{securityContext: {runAsNonRoot: true}}]}}
+    - name: disallow-latest-tag
+      match: {any: [{resources: {kinds: [Pod], namespaces: [ks-demo, ks-system]}}]}
+      validate:
+        message: "Use pinned image tags (not :latest)."
+        pattern: {spec: {containers: [{image: "!*:latest"}]}}
+# TODO(week 7): add a verifyImages rule with your Cosign public key / keyless identity.
